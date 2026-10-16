@@ -2,6 +2,8 @@
 DINO STUDY RUN — GAME + PAGE INTERACTION
 Controls: Space / Up Arrow / tap Jump.
 The game pauses on collision until at least one flashcard is flipped.
+Difficulty ramps over time: faster speed, tighter spawn gaps, and
+flying birds appear (some high enough that you must NOT jump).
 */
 (function () {
   "use strict";
@@ -17,8 +19,9 @@ The game pauses on collision until at least one flashcard is flipped.
     const feedback = $("card-feedback"), nextButton = $("next-card"), continueButton = $("continue-button");
 
     const W = 900, H = 260, GROUND = 210, DINO_X = 92, DINO_W = 36, DINO_H = 42;
-    let state = "ready", raf = 0, lastTime = 0, score = 0, best = 0, speed = 5.2;
-    let spawnTimer = 55, groundOffset = 0, obstacles = [];
+    const BASE_SPEED = 5.2, MAX_SPEED = 14;
+    let state = "ready", raf = 0, lastTime = 0, score = 0, best = 0, speed = BASE_SPEED;
+    let spawnTimer = 55, birdTimer = 140, groundOffset = 0, obstacles = [], birds = [];
     let clouds = [{ x: 180, y: 44 }, { x: 520, y: 72 }, { x: 760, y: 35 }];
     let dust = [];
     let dino = { y: GROUND - DINO_H, vy: 0, onGround: true, step: 0 };
@@ -63,6 +66,24 @@ The game pauses on collision until at least one flashcard is flipped.
       // top flower
       ctx.fillStyle = "#b9ef56"; ctx.fillRect(x + 7, y - 4, 8, 4);
     }
+    function drawBird(b) {
+      const flap = Math.floor(b.step / 6) % 2 === 0;
+      const x = b.x, y = b.y;
+      ctx.fillStyle = "#334155";
+      // body + head + beak
+      ctx.fillRect(x + 8, y + 6, 24, 8);
+      ctx.fillRect(x + 28, y + 1, 9, 8);
+      ctx.fillStyle = "#f59e0b"; ctx.fillRect(x + 37, y + 4, 5, 3);
+      // eye
+      ctx.fillStyle = "#fff"; ctx.fillRect(x + 33, y + 3, 3, 3);
+      ctx.fillStyle = "#1c1e21"; ctx.fillRect(x + 34, y + 4, 1, 1);
+      // wings
+      ctx.fillStyle = "#475569";
+      if (flap) { ctx.fillRect(x + 12, y - 8, 14, 10); ctx.fillRect(x + 10, y + 2, 10, 4); }
+      else { ctx.fillRect(x + 12, y + 12, 14, 10); }
+      // tail
+      ctx.fillStyle = "#334155"; ctx.fillRect(x + 1, y + 5, 8, 5);
+    }
     function drawHillLayer(offset, color, baseY, amp) {
       ctx.fillStyle = color;
       ctx.beginPath();
@@ -103,7 +124,7 @@ The game pauses on collision until at least one flashcard is flipped.
       for (let x = -20; x < W; x += 42) ctx.fillRect(x - (groundOffset % 42), GROUND + 12, 17, 2);
       // running dust
       dust.forEach(p => { ctx.fillStyle = `rgb(140 155 130 / ${Math.max(0, p.life * 0.45).toFixed(3)})`; ctx.fillRect(p.x, p.y, p.r, p.r); });
-      obstacles.forEach(drawCactus); drawDino(DINO_X, dino.y, state === "running");
+      obstacles.forEach(drawCactus); birds.forEach(drawBird); drawDino(DINO_X, dino.y, state === "running");
       if (state === "choosing") { ctx.fillStyle = "rgb(163 41 41 / 7%)"; ctx.fillRect(0, 0, W, H); }
     }
     function jump() {
@@ -112,8 +133,9 @@ The game pauses on collision until at least one flashcard is flipped.
     }
     function startGame(resetRun = true) {
       state = "running"; status("RUNNING"); overlay.hidden = true;
-      if (resetRun) { score = 0; speed = 5.2; }
-      spawnTimer = 45; obstacles = []; dust = []; dino.y = GROUND - DINO_H; dino.vy = 0; dino.onGround = true;
+      if (resetRun) { score = 0; speed = BASE_SPEED; }
+      spawnTimer = 45; birdTimer = 160; obstacles = []; birds = []; dust = [];
+      dino.y = GROUND - DINO_H; dino.vy = 0; dino.onGround = true;
       lastTime = 0; cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
     }
     function showError(message) { deckError.textContent = message; deckError.hidden = false; }
@@ -171,7 +193,11 @@ The game pauses on collision until at least one flashcard is flipped.
     function loop(time) {
       if (state !== "running") return;
       const dt = lastTime ? Math.min((time - lastTime) / 16.67, 2) : 1; lastTime = time;
-      score += dt * 0.12 * speed; speed = Math.min(10, 5.2 + score / 850); scoreEl.textContent = fmt(score); dino.step += dt;
+      // Difficulty ramps over time: speed grows with score toward a higher cap,
+      // and spawn gaps shrink the further you run.
+      score += dt * 0.12 * speed;
+      speed = Math.min(MAX_SPEED, BASE_SPEED + score / 320);
+      scoreEl.textContent = fmt(score); dino.step += dt;
       dino.vy += 0.72 * dt; dino.y += dino.vy * dt;
       if (dino.y >= GROUND - DINO_H) { dino.y = GROUND - DINO_H; dino.vy = 0; dino.onGround = true; }
       groundOffset += speed * dt;
@@ -181,13 +207,39 @@ The game pauses on collision until at least one flashcard is flipped.
       dust.forEach(p => { p.x -= speed * 0.7 * dt; p.y += p.vy * dt; p.vy += 0.05 * dt; p.life -= 0.03 * dt; });
       dust = dust.filter(p => p.life > 0);
       clouds.forEach(c => { c.x -= speed * 0.18 * dt; if (c.x < -35) { c.x = W + Math.random() * 100; c.y = 30 + Math.random() * 55; } });
+      // cactus spawning — gaps tighten as speed increases
       spawnTimer -= dt;
-      if (spawnTimer <= 0) { obstacles.push({ x: W + 10, h: 27 + Math.floor(Math.random() * 17), w: 23 }); spawnTimer = Math.max(43, 76 + Math.random() * 40 - speed * 2); }
+      if (spawnTimer <= 0) {
+        obstacles.push({ x: W + 10, h: 27 + Math.floor(Math.random() * 17), w: 23 });
+        spawnTimer = Math.max(30, 80 + Math.random() * 40 - speed * 3.5);
+      }
       obstacles.forEach(o => { o.x -= speed * dt; }); obstacles = obstacles.filter(o => o.x > -35);
+      // bird spawning — starts after score 250, gets more frequent over time.
+      // Some fly low (jump over them) and some fly high (do NOT jump — stay grounded).
+      if (score > 250) {
+        birdTimer -= dt;
+        if (birdTimer <= 0) {
+          const high = Math.random() < 0.45;
+          birds.push({
+            x: W + 20,
+            y: high ? GROUND - 92 - Math.random() * 14 : GROUND - 48 - Math.random() * 10,
+            step: 0
+          });
+          birdTimer = Math.max(70, 200 + Math.random() * 100 - score / 30);
+        }
+      }
+      birds.forEach(b => { b.x -= (speed + 1.4) * dt; b.step += dt; });
+      birds = birds.filter(b => b.x > -50);
+      // collisions
       const d = { left: DINO_X + 5, right: DINO_X + DINO_W - 2, top: dino.y + 4, bottom: dino.y + DINO_H };
       for (const o of obstacles) {
         const b = { left: o.x, right: o.x + o.w, top: GROUND - o.h, bottom: GROUND };
         if (d.right > b.left + 2 && d.left < b.right - 2 && d.bottom > b.top + 2 && d.top < b.bottom) { gameOver(); return; }
+      }
+      for (const b of birds) {
+        // bird hitbox is roughly the body rectangle
+        const hb = { left: b.x + 2, right: b.x + 40, top: b.y + 1, bottom: b.y + 16 };
+        if (d.right > hb.left + 2 && d.left < hb.right - 2 && d.bottom > hb.top + 2 && d.top < hb.bottom) { gameOver(); return; }
       }
       drawScene(); raf = requestAnimationFrame(loop);
     }
