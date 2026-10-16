@@ -1,9 +1,10 @@
 /*
 DINO STUDY RUN — GAME + PAGE INTERACTION
-Controls: Space / Up Arrow / tap Jump.
+Controls: Space / Up Arrow / tap Jump. Down Arrow / S to duck (or hold Jump button with right-click? no — use keys).
+Actually: ducking works with Down Arrow / S held. The on-screen DUCK button also works.
 The game pauses on collision until at least one flashcard is flipped.
 Difficulty ramps over time: faster speed, tighter spawn gaps, and
-flying birds appear (some high enough that you must NOT jump).
+flying birds appear — duck under high birds, jump over low ones.
 */
 (function () {
   "use strict";
@@ -19,12 +20,13 @@ flying birds appear (some high enough that you must NOT jump).
     const feedback = $("card-feedback"), nextButton = $("next-card"), continueButton = $("continue-button");
 
     const W = 900, H = 260, GROUND = 210, DINO_X = 92, DINO_W = 36, DINO_H = 42;
+    const DUCK_H = 24; // dino height while ducking
     const BASE_SPEED = 5.2, MAX_SPEED = 14;
     let state = "ready", raf = 0, lastTime = 0, score = 0, best = 0, speed = BASE_SPEED;
     let spawnTimer = 55, birdTimer = 140, groundOffset = 0, obstacles = [], birds = [];
     let clouds = [{ x: 180, y: 44 }, { x: 520, y: 72 }, { x: 760, y: 35 }];
     let dust = [];
-    let dino = { y: GROUND - DINO_H, vy: 0, onGround: true, step: 0 };
+    let dino = { y: GROUND - DINO_H, vy: 0, onGround: true, step: 0, ducking: false, duckHeld: false };
     let activeDeckId = null, currentCard = null, flipped = false;
 
     try { best = Number(localStorage.getItem("dinoStudyHighScore")) || 0; } catch (_) {}
@@ -33,6 +35,7 @@ flying birds appear (some high enough that you must NOT jump).
     function status(s) { statusEl.textContent = s; }
 
     function drawDino(x, y, running) {
+      if (dino.ducking && dino.onGround) { drawDinoDuck(x, y, running); return; }
       // tail + body + head
       ctx.fillStyle = "#3f6212";
       ctx.fillRect(x + 7, y + 9, 22, 23); ctx.fillRect(x + 19, y + 1, 15, 16);
@@ -55,6 +58,30 @@ flying birds appear (some high enough that you must NOT jump).
       ctx.fillStyle = "#365314";
       ctx.fillRect(x + 10, leftLong ? y + 39 : y + 35, 6, 3);
       ctx.fillRect(x + 22, leftLong ? y + 35 : y + 39, 6, 3);
+    }
+    // Crouched dino: long body low to the ground (42 wide, 24 tall)
+    function drawDinoDuck(x, groundTopY, running) {
+      const y = GROUND - DUCK_H; // draw relative to duck height
+      ctx.fillStyle = "#3f6212";
+      // long horizontal body + head at front
+      ctx.fillRect(x + 2, y + 4, 30, 16);
+      ctx.fillRect(x + 30, y + 1, 12, 12);
+      ctx.fillRect(x + 42, y + 4, 5, 5); // snout
+      ctx.fillRect(x - 4, y + 8, 8, 5);  // tail
+      // back ridge highlights
+      ctx.fillStyle = "#a3e635";
+      ctx.fillRect(x + 8, y + 4, 4, 3); ctx.fillRect(x + 18, y + 3, 4, 3);
+      // belly
+      ctx.fillStyle = "#bef264";
+      ctx.fillRect(x + 6, y + 14, 22, 5);
+      // eye + mouth
+      ctx.fillStyle = "#fff"; ctx.fillRect(x + 37, y + 3, 4, 4);
+      ctx.fillStyle = "#1c1e21"; ctx.fillRect(x + 39, y + 4, 2, 2); ctx.fillRect(x + 38, y + 8, 6, 1);
+      // scurrying legs (alternate)
+      const leftLong = running && Math.floor(dino.step / 4) % 2 === 0;
+      ctx.fillStyle = "#3f6212";
+      if (leftLong) { ctx.fillRect(x + 10, y + 19, 5, 5); ctx.fillRect(x + 24, y + 19, 5, 3); }
+      else { ctx.fillRect(x + 10, y + 19, 5, 3); ctx.fillRect(x + 24, y + 19, 5, 5); }
     }
     function drawCactus(o) {
       const x = o.x, y = GROUND - o.h; ctx.fillStyle = "#4d7c0f";
@@ -129,13 +156,18 @@ flying birds appear (some high enough that you must NOT jump).
     }
     function jump() {
       if (state === "ready") { startGame(); return; }
-      if (state === "running" && dino.onGround) { dino.vy = -13.2; dino.onGround = false; }
+      if (state === "running" && dino.onGround) { dino.vy = -13.2; dino.onGround = false; dino.ducking = false; }
+    }
+    function setDuck(on) {
+      dino.duckHeld = on;
+      // can only duck while grounded; airborne "fast fall" like the real dino game
+      if (on && !dino.onGround && state === "running" && dino.vy < 3) dino.vy = 3;
     }
     function startGame(resetRun = true) {
       state = "running"; status("RUNNING"); overlay.hidden = true;
       if (resetRun) { score = 0; speed = BASE_SPEED; }
       spawnTimer = 45; birdTimer = 160; obstacles = []; birds = []; dust = [];
-      dino.y = GROUND - DINO_H; dino.vy = 0; dino.onGround = true;
+      dino.y = GROUND - DINO_H; dino.vy = 0; dino.onGround = true; dino.ducking = false; dino.duckHeld = false;
       lastTime = 0; cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
     }
     function showError(message) { deckError.textContent = message; deckError.hidden = false; }
@@ -198,6 +230,8 @@ flying birds appear (some high enough that you must NOT jump).
       score += dt * 0.12 * speed;
       speed = Math.min(MAX_SPEED, BASE_SPEED + score / 320);
       scoreEl.textContent = fmt(score); dino.step += dt;
+      // ducking state: only applies while grounded
+      dino.ducking = dino.duckHeld && dino.onGround;
       dino.vy += 0.72 * dt; dino.y += dino.vy * dt;
       if (dino.y >= GROUND - DINO_H) { dino.y = GROUND - DINO_H; dino.vy = 0; dino.onGround = true; }
       groundOffset += speed * dt;
@@ -215,14 +249,18 @@ flying birds appear (some high enough that you must NOT jump).
       }
       obstacles.forEach(o => { o.x -= speed * dt; }); obstacles = obstacles.filter(o => o.x > -35);
       // bird spawning — starts after score 250, gets more frequent over time.
-      // Some fly low (jump over them) and some fly high (do NOT jump — stay grounded).
+      // Low birds must be jumped; mid-height birds must be DUCKED under.
       if (score > 250) {
         birdTimer -= dt;
         if (birdTimer <= 0) {
-          const high = Math.random() < 0.45;
+          const roll = Math.random();
           birds.push({
             x: W + 20,
-            y: high ? GROUND - 92 - Math.random() * 14 : GROUND - 48 - Math.random() * 10,
+            // high band: can run under it while ducking OR standing? no —
+            // low band: jump over. mid band: duck under (too low to run under standing).
+            y: roll < 0.4 ? GROUND - 92 - Math.random() * 14   // high — pass under standing
+               : roll < 0.75 ? GROUND - 46                      // mid — duck!
+               : GROUND - 58 - Math.random() * 8,               // low-ish — jump
             step: 0
           });
           birdTimer = Math.max(70, 200 + Math.random() * 100 - score / 30);
@@ -230,8 +268,10 @@ flying birds appear (some high enough that you must NOT jump).
       }
       birds.forEach(b => { b.x -= (speed + 1.4) * dt; b.step += dt; });
       birds = birds.filter(b => b.x > -50);
-      // collisions
-      const d = { left: DINO_X + 5, right: DINO_X + DINO_W - 2, top: dino.y + 4, bottom: dino.y + DINO_H };
+      // collisions — hitbox shrinks to the duck box while ducking
+      const dinoH = dino.ducking ? DUCK_H : DINO_H;
+      const dinoTop = dino.ducking ? GROUND - DUCK_H : dino.y + 4;
+      const d = { left: DINO_X + 2, right: DINO_X + (dino.ducking ? 47 : DINO_W - 2), top: dinoTop, bottom: GROUND };
       for (const o of obstacles) {
         const b = { left: o.x, right: o.x + o.w, top: GROUND - o.h, bottom: GROUND };
         if (d.right > b.left + 2 && d.left < b.right - 2 && d.bottom > b.top + 2 && d.top < b.bottom) { gameOver(); return; }
@@ -251,14 +291,31 @@ flying birds appear (some high enough that you must NOT jump).
     nextButton.addEventListener("click", nextCard);
     continueButton.addEventListener("click", resumeGame);
     $("choose-another-deck").addEventListener("click", () => { deckPicker.hidden = false; cardArea.hidden = true; flipped = false; renderDeckPicker(); });
+    // optional on-screen duck button (safe to omit from HTML if not present)
+    const duckButton = $("duck-button");
+    if (duckButton) {
+      duckButton.addEventListener("pointerdown", e => { e.preventDefault(); setDuck(true); });
+      duckButton.addEventListener("pointerup", () => setDuck(false));
+      duckButton.addEventListener("pointerleave", () => setDuck(false));
+      duckButton.addEventListener("pointercancel", () => setDuck(false));
+    }
     document.addEventListener("keydown", event => {
       if (event.code === "Enter" && event.target === flashcard) { event.preventDefault(); flipCard(); return; }
+      // duck keys
+      if (event.code === "ArrowDown" || event.code === "KeyS") {
+        const tag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : "";
+        if (tag === "input" || tag === "textarea" || tag === "select" || event.target === flashcard) return;
+        event.preventDefault(); setDuck(true); return;
+      }
       if (event.code !== "Space" && event.code !== "ArrowUp") return;
       const tag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : "";
       if (tag === "input" || tag === "textarea" || tag === "select") return;
       if (event.target === flashcard) { event.preventDefault(); flipCard(); return; }
       if (tag === "button") return;
       event.preventDefault(); jump();
+    });
+    document.addEventListener("keyup", event => {
+      if (event.code === "ArrowDown" || event.code === "KeyS") setDuck(false);
     });
     drawScene();
     window.addEventListener("resize", drawScene);
