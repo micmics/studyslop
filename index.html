@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f7f8">
+  <title>Dino Study Run</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="deck-cards.js" defer></script>
+  <script src="game.js" defer></script>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="site-header">
+      <div><p class="eyebrow">PLAY A LITTLE. LEARN A LITTLE.</p><h1>Dino Study Run</h1></div>
+      <div class="high-score"><span>BEST</span><strong id="high-score">00000</strong></div>
+    </header>
+
+    <section class="game-panel" aria-label="Dinosaur game">
+      <div class="game-toolbar"><span id="game-status" class="status-pill">READY</span><span class="score-readout">SCORE <strong id="score">00000</strong></span></div>
+      <div class="canvas-wrap">
+        <canvas id="game-canvas" width="900" height="260" aria-label="Dinosaur runner. Press Space or Up Arrow to jump."></canvas>
+        <div id="start-overlay" class="canvas-overlay"><p class="overlay-title">Ready to run?</p><p>Press Space, ↑, or tap Jump to start.</p><button id="start-button" class="button button-dark" type="button">Start game</button></div>
+      </div>
+      <div class="game-controls"><p>SPACE / ↑ TO JUMP</p><button id="jump-button" class="button button-dark" type="button">Jump</button></div>
+    </section>
+
+    <section id="study-panel" class="study-panel" hidden aria-labelledby="study-heading">
+      <div class="section-heading"><div><p class="eyebrow">PAUSE AND POWER UP</p><h2 id="study-heading">Time for a flashcard</h2></div><span class="status-pill status-study">STUDY BREAK</span></div>
+      <div id="deck-picker"><p class="section-intro">Choose the deck you want to study before returning to the run.</p><div id="deck-list" class="deck-list"></div><p id="deck-error" class="error-message" role="alert" hidden></p></div>
+      <div id="card-area" hidden>
+        <div class="card-meta"><span id="active-deck-name"></span><span id="card-position"></span></div>
+        <button id="flashcard" class="flashcard" type="button" aria-pressed="false"><span id="card-side-label" class="card-side-label">QUESTION · TAP TO REVEAL</span><span id="card-text" class="card-text"></span><span class="card-tap-hint">Tap or press Enter to flip</span></button>
+        <p id="card-feedback" class="card-feedback" aria-live="polite">Reveal the answer to unlock Continue.</p>
+        <div class="card-actions"><button id="choose-another-deck" class="button button-light" type="button">Choose another deck</button><button id="next-card" class="button button-light" type="button" disabled>Next card</button><button id="continue-button" class="button button-accent" type="button" disabled>Continue running</button></div>
+      </div>
+    </section>
+    <footer class="site-footer"><span>Your decks live in <code>deck-cards.js</code>.</span><span>Best score is saved in this browser.</span></footer>
+  </main>
+</body>
+</html>
