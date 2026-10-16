@@ -20,6 +20,7 @@ The game pauses on collision until at least one flashcard is flipped.
     let state = "ready", raf = 0, lastTime = 0, score = 0, best = 0, speed = 5.2;
     let spawnTimer = 55, groundOffset = 0, obstacles = [];
     let clouds = [{ x: 180, y: 44 }, { x: 520, y: 72 }, { x: 760, y: 35 }];
+    let dust = [];
     let dino = { y: GROUND - DINO_H, vy: 0, onGround: true, step: 0 };
     let activeDeckId = null, currentCard = null, flipped = false;
 
@@ -29,28 +30,81 @@ The game pauses on collision until at least one flashcard is flipped.
     function status(s) { statusEl.textContent = s; }
 
     function drawDino(x, y, running) {
-      ctx.fillStyle = "#202124";
+      // tail + body + head
+      ctx.fillStyle = "#3f6212";
       ctx.fillRect(x + 7, y + 9, 22, 23); ctx.fillRect(x + 19, y + 1, 15, 16);
       ctx.fillRect(x + 26, y + 5, 10, 6); ctx.fillRect(x + 1, y + 15, 9, 5);
-      ctx.fillStyle = "#fff"; ctx.fillRect(x + 29, y + 4, 3, 3); ctx.fillStyle = "#202124";
-      if (running && dino.onGround && Math.floor(dino.step / 5) % 2 === 0) {
-        ctx.fillRect(x + 10, y + 31, 6, 11); ctx.fillRect(x + 22, y + 31, 6, 7);
-      } else {
-        ctx.fillRect(x + 10, y + 31, 6, 7); ctx.fillRect(x + 22, y + 31, 6, 11);
-      }
+      // back ridge highlights
+      ctx.fillStyle = "#a3e635";
+      ctx.fillRect(x + 11, y + 9, 4, 3); ctx.fillRect(x + 18, y + 5, 4, 3);
+      // belly
+      ctx.fillStyle = "#bef264";
+      ctx.fillRect(x + 9, y + 24, 17, 7);
+      // eye + mouth
+      ctx.fillStyle = "#fff"; ctx.fillRect(x + 29, y + 4, 4, 4);
+      ctx.fillStyle = "#1c1e21"; ctx.fillRect(x + 31, y + 5, 2, 2); ctx.fillRect(x + 30, y + 9, 6, 1);
+      // legs
+      const leftLong = !(running && dino.onGround && Math.floor(dino.step / 5) % 2 === 0);
+      ctx.fillStyle = "#3f6212";
+      if (leftLong) { ctx.fillRect(x + 10, y + 31, 6, 11); ctx.fillRect(x + 22, y + 31, 6, 7); }
+      else { ctx.fillRect(x + 10, y + 31, 6, 7); ctx.fillRect(x + 22, y + 31, 6, 11); }
+      // toes at each leg's ground contact
+      ctx.fillStyle = "#365314";
+      ctx.fillRect(x + 10, leftLong ? y + 39 : y + 35, 6, 3);
+      ctx.fillRect(x + 22, leftLong ? y + 35 : y + 39, 6, 3);
     }
     function drawCactus(o) {
-      const x = o.x, y = GROUND - o.h; ctx.fillStyle = "#202124";
+      const x = o.x, y = GROUND - o.h; ctx.fillStyle = "#4d7c0f";
       ctx.fillRect(x + 7, y, 9, o.h); ctx.fillRect(x, y + 13, 7, 6);
       ctx.fillRect(x, y + 8, 4, 12); ctx.fillRect(x + 16, y + 20, 7, 6); ctx.fillRect(x + 19, y + 15, 4, 12);
+      // highlights
+      ctx.fillStyle = "#84cc16";
+      ctx.fillRect(x + 8, y + 3, 2, Math.max(6, o.h - 8));
+      // top flower
+      ctx.fillStyle = "#b9ef56"; ctx.fillRect(x + 7, y - 4, 8, 4);
+    }
+    function drawHillLayer(offset, color, baseY, amp) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      for (let x = 0; x <= W; x += 12) {
+        const wx = x + offset;
+        ctx.lineTo(x, baseY + Math.sin(wx * 0.011) * amp + Math.sin(wx * 0.037) * amp * 0.35);
+      }
+      ctx.lineTo(W, H);
+      ctx.closePath();
+      ctx.fill();
+    }
+    function drawCloud(c) {
+      const puff = (cx, cy, r) => { ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill(); };
+      ctx.fillStyle = "rgb(188 204 224 / 55%)";
+      ctx.fillRect(c.x - 7, c.y + 8, 35, 3);
+      ctx.fillStyle = "#ffffff";
+      puff(c.x, c.y, 7); puff(c.x + 9, c.y - 6, 9); puff(c.x + 20, c.y - 1, 7); puff(c.x + 9, c.y + 3, 8);
     }
     function drawScene() {
-      ctx.clearRect(0, 0, W, H); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = "#dfe2e7";
-      clouds.forEach(c => { ctx.fillRect(c.x, c.y, 28, 5); ctx.fillRect(c.x + 7, c.y - 5, 13, 5); });
-      ctx.fillStyle = "#202124"; ctx.fillRect(0, GROUND, W, 2);
+      const sky = ctx.createLinearGradient(0, 0, 0, H);
+      sky.addColorStop(0, "#e8f3ff"); sky.addColorStop(0.75, "#fdfeff"); sky.addColorStop(1, "#ffffff");
+      ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+      // sun with glow
+      const sunX = W - 95, sunY = 50;
+      const glow = ctx.createRadialGradient(sunX, sunY, 8, sunX, sunY, 48);
+      glow.addColorStop(0, "rgb(255 226 108 / 70%)"); glow.addColorStop(1, "rgb(255 226 108 / 0%)");
+      ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(sunX, sunY, 48, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#ffd93b"; ctx.beginPath(); ctx.arc(sunX, sunY, 20, 0, Math.PI * 2); ctx.fill();
+      // parallax hills + clouds
+      drawHillLayer(groundOffset * 0.22, "#e7edf5", 174, 22);
+      drawHillLayer(groundOffset * 0.45, "#e9f1de", 194, 13);
+      clouds.forEach(drawCloud);
+      // ground band + line + texture
+      ctx.fillStyle = "#f3f8ef"; ctx.fillRect(0, GROUND + 2, W, H - GROUND - 2);
+      ctx.fillStyle = "#1c1e21"; ctx.fillRect(0, GROUND, W, 2);
+      ctx.fillStyle = "#d3ddca";
       for (let x = -20; x < W; x += 42) ctx.fillRect(x - (groundOffset % 42), GROUND + 12, 17, 2);
+      // running dust
+      dust.forEach(p => { ctx.fillStyle = `rgb(140 155 130 / ${Math.max(0, p.life * 0.45).toFixed(3)})`; ctx.fillRect(p.x, p.y, p.r, p.r); });
       obstacles.forEach(drawCactus); drawDino(DINO_X, dino.y, state === "running");
+      if (state === "choosing") { ctx.fillStyle = "rgb(163 41 41 / 7%)"; ctx.fillRect(0, 0, W, H); }
     }
     function jump() {
       if (state === "ready") { startGame(); return; }
@@ -59,7 +113,7 @@ The game pauses on collision until at least one flashcard is flipped.
     function startGame(resetRun = true) {
       state = "running"; status("RUNNING"); overlay.hidden = true;
       if (resetRun) { score = 0; speed = 5.2; }
-      spawnTimer = 45; obstacles = []; dino.y = GROUND - DINO_H; dino.vy = 0; dino.onGround = true;
+      spawnTimer = 45; obstacles = []; dust = []; dino.y = GROUND - DINO_H; dino.vy = 0; dino.onGround = true;
       lastTime = 0; cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
     }
     function showError(message) { deckError.textContent = message; deckError.hidden = false; }
@@ -121,6 +175,11 @@ The game pauses on collision until at least one flashcard is flipped.
       dino.vy += 0.72 * dt; dino.y += dino.vy * dt;
       if (dino.y >= GROUND - DINO_H) { dino.y = GROUND - DINO_H; dino.vy = 0; dino.onGround = true; }
       groundOffset += speed * dt;
+      if (dino.onGround && state === "running" && Math.random() < 0.45 * dt) {
+        dust.push({ x: DINO_X + 6 + Math.random() * 8, y: GROUND - 1, vy: -0.5 - Math.random() * 1.2, life: 1, r: 1 + Math.random() * 2.5 });
+      }
+      dust.forEach(p => { p.x -= speed * 0.7 * dt; p.y += p.vy * dt; p.vy += 0.05 * dt; p.life -= 0.03 * dt; });
+      dust = dust.filter(p => p.life > 0);
       clouds.forEach(c => { c.x -= speed * 0.18 * dt; if (c.x < -35) { c.x = W + Math.random() * 100; c.y = 30 + Math.random() * 55; } });
       spawnTimer -= dt;
       if (spawnTimer <= 0) { obstacles.push({ x: W + 10, h: 27 + Math.floor(Math.random() * 17), w: 23 }); spawnTimer = Math.max(43, 76 + Math.random() * 40 - speed * 2); }
