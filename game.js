@@ -271,7 +271,10 @@ flying birds appear — duck under high birds, jump over low ones.
       // collisions — hitbox shrinks to the duck box while ducking
       const dinoH = dino.ducking ? DUCK_H : DINO_H;
       const dinoTop = dino.ducking ? GROUND - DUCK_H : dino.y + 4;
-      const d = { left: DINO_X + 2, right: DINO_X + (dino.ducking ? 47 : DINO_W - 2), top: dinoTop, bottom: GROUND };
+      // bottom must track the dino while airborne — pinning it to GROUND made
+      // the Y-overlap test always true, so any X overlap killed you mid-jump.
+      const dinoBottom = dino.ducking ? GROUND : dino.y + DINO_H;
+      const d = { left: DINO_X + 2, right: DINO_X + (dino.ducking ? 47 : DINO_W - 2), top: dinoTop, bottom: dinoBottom };
       for (const o of obstacles) {
         const b = { left: o.x, right: o.x + o.w, top: GROUND - o.h, bottom: GROUND };
         if (d.right > b.left + 2 && d.left < b.right - 2 && d.bottom > b.top + 2 && d.top < b.bottom) { gameOver(); return; }
