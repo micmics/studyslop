@@ -209,7 +209,17 @@ const DECKS = [
       { front: "What do the symbols ⊙ and ⊗ mean in diagrams?", back: "⊙ (dot) = vector pointing OUT of the page (the tip of an arrow coming at you). ⊗ (cross) = vector pointing INTO the page (the tail feathers going away)." },
       { front: "A wire carries current out of the page (⊙). Which way do the magnetic field lines circulate around it?", back: "Anticlockwise. Thumb points out of the page toward you, and your curled fingers go anticlockwise. If the current is into the page (⊗), the field circulates clockwise." }
     ]
+  },
+  {
+      id: "diddy",
+    name: "sus deck",
+    description: "diddy",
+    cards: [
+      { front: "jester gooning", back: "359 mahogany terrace" },
+
+    ]
   }
+  
 ];
 /* PART 2: EDITABLE DECK CONTENT END */
 
